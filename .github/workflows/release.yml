@@ -1,0 +1,61 @@
+name: Auto Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Determine release type
+        id: release_type
+        run: |
+          LABELS=$(echo '${{ toJSON(github.event.pull_request.labels) }}' | jq -r '.[].name')
+          echo "Detected labels: $LABELS"
+
+          RELEASE_TYPE="patch"
+          if echo "$LABELS" | grep -q "major"; then
+            RELEASE_TYPE="major"
+          elif echo "$LABELS" | grep -q "minor"; then
+            RELEASE_TYPE="minor"
+          fi
+
+          echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_ENV
+          echo "::set-output name=type::$RELEASE_TYPE"
+
+      - name: Run standard-version
+        run: npx standard-version --release-as ${{ env.RELEASE_TYPE }}
+
+      - name: Push changes and tag
+        run: |
+          git push --follow-tags origin main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
