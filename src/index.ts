@@ -1,1 +1,1 @@
-console.log("Hello, Standard Version!, 01");
+console.log("Hello, Standard Version!, this is a test.");
